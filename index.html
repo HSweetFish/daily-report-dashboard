@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>日报数据看板</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="data.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;background:#e4e7eb;color:#1a1a2e;padding:20px 12px;min-height:100vh}
+.container{max-width:960px;margin:0 auto}
+.header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px}
+.header h1{font-size:20px;color:#1a1a2e;display:flex;align-items:center;gap:8px}
+.header h1 small{font-size:12px;color:#9aa0b0;font-weight:normal}
+.header-right{display:flex;align-items:center;gap:10px}
+.exam-countdown{font-size:12px;color:#0D47A1;background:#e3f2fd;padding:5px 12px;border-radius:20px}
+.back-btn{padding:5px 14px;background:#e8ecf1;border:none;border-radius:8px;color:#5a6a7a;cursor:pointer;font-size:12px}
+.back-btn:hover{background:#d0d8e4}
+.page{display:none}.page.active{display:block}
+
+.dash-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px}
+.dash-card{background:#fff;border-radius:12px;padding:16px;text-align:center;box-shadow:0 2px 14px rgba(0,0,0,0.07)}
+.dash-card .num{font-size:28px;font-weight:700;color:#1a1a2e}
+.dash-card .lbl{font-size:11px;color:#5a6a7a;margin-top:4px}
+.dash-card .sub{font-size:10px;color:#9aa0b0;margin-top:2px}
+
+.nav-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px}
+.nav-btn{padding:28px 16px;border-radius:14px;border:none;cursor:pointer;text-align:center;transition:.25s;background:#fff;box-shadow:0 2px 14px rgba(0,0,0,0.07)}
+.nav-btn:hover{background:#e8f0fe;transform:translateY(-3px);box-shadow:0 4px 20px rgba(0,0,0,0.10)}
+.nav-btn .ico{font-size:28px;margin-bottom:6px}
+.nav-btn .title{font-size:15px;color:#1a1a2e;font-weight:600;transition:color .2s}
+.nav-btn:hover .title{color:#2979FF}
+.nav-btn .desc{font-size:11px;color:#5a6a7a;margin-top:3px}
+
+.quick-links{background:#fff;border-radius:12px;padding:14px 16px;box-shadow:0 2px 14px rgba(0,0,0,0.07);margin-bottom:16px}
+.ql-label{font-size:11px;color:#5a6a7a;margin-bottom:8px}
+.ql-btns{display:flex;gap:8px;flex-wrap:wrap}
+.ql-btn{padding:6px 14px;border-radius:8px;border:none;color:#fff;font-size:12px;cursor:pointer;transition:.2s}
+.ql-btn:hover{opacity:.85;transform:translateY(-1px)}
+.section-title{font-size:14px;color:#1a1a2e;margin:14px 0 10px 0;padding-bottom:5px;border-bottom:1px solid #e8ecf1}
+
+@media(max-width:700px){
+  .dash-grid,.expense-stats{grid-template-columns:repeat(2,1fr)}
+  .nav-grid{grid-template-columns:1fr}
+  .chart-grid,.chart-row2{grid-template-columns:1fr}
+  .summary-row{grid-template-columns:repeat(2,1fr)}
+  .freq-grid{grid-template-columns:repeat(2,1fr)}
+}
+@media(max-width:480px){.freq-grid{grid-template-columns:1fr}}
+/* Keep all existing CSS classes - copied below */
+.freq-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px}
+.freq-card{background:#fff;border-radius:10px;padding:14px;text-align:center;box-shadow:0 2px 14px rgba(0,0,0,0.07);cursor:pointer;transition:.2s}
+.freq-card:hover{box-shadow:0 4px 20px rgba(0,0,0,0.10);transform:translateY(-2px)}
+.freq-card .fc-num{font-size:22px;font-weight:700;color:#2979FF}
+.freq-card .fc-label{font-size:11px;color:#5a6a7a;margin-top:4px}
+.freq-card .fc-sub{font-size:10px;color:#9aa0b0;margin-top:2px}
+.freq-card .fc-big{font-size:13px;color:#2979FF;font-weight:600;margin-top:2px}
+.freq-card .fc-tags{display:flex;gap:4px;justify-content:center;flex-wrap:wrap;margin-top:4px}
+.freq-card .fc-tag{font-size:9px;padding:2px 8px;border-radius:4px;background:#e8ecf1;color:#5a6a7a}
+.study-header{display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap}
+.study-header .label{font-size:13px;color:#5a6a7a}
+.project-btn,.period-btn{padding:5px 14px;border-radius:8px;border:none;background:#e8ecf1;color:#5a6a7a;font-size:12px;cursor:pointer}
+.project-btn.active,.period-btn.active{background:#2979FF;color:#fff}
+.project-btn:hover,.period-btn:hover{background:#d0d8e4}
+.period-bar{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap}
+.summary-row{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}
+.summary-card{background:#fff;border-radius:10px;padding:12px;text-align:center;box-shadow:0 2px 14px rgba(0,0,0,0.07)}
+.summary-card .num{font-size:22px;font-weight:700;color:#1a1a2e}
+.summary-card .lbl{font-size:10px;color:#5a6a7a;margin-top:3px}
+.chart-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+.chart-box{background:#fff;border-radius:10px;padding:14px;box-shadow:0 2px 14px rgba(0,0,0,0.07)}
+.chart-box.full{grid-column:1/-1}
+.chart-box h3{font-size:12px;color:#5a6a7a;margin-bottom:8px;font-weight:400}
+canvas{width:100%!important;height:auto!important;max-height:200px}
+.chart-note{font-size:10px;color:#9aa0b0;margin-top:6px;line-height:1.5}
+.expense-stats{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:14px}
+.expense-stat{background:#fff;border-radius:10px;padding:12px;text-align:center;box-shadow:0 2px 14px rgba(0,0,0,0.07)}
+.expense-stat .num{font-size:20px;font-weight:700;color:#1a1a2e}
+.expense-stat .lbl{font-size:10px;color:#5a6a7a;margin-top:3px}
+.chart-full{background:#fff;border-radius:10px;padding:14px;box-shadow:0 2px 14px rgba(0,0,0,0.07);margin-bottom:12px}
+.chart-full h3{font-size:12px;color:#5a6a7a;margin-bottom:8px;font-weight:400}
+.chart-row2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+.bar-legend{display:flex;gap:14px;flex-wrap:wrap;margin-top:8px;font-size:10px;color:#5a6a7a}
+.bar-legend span{display:flex;align-items:center;gap:5px}
+.bar-legend .dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.bar-legend .gradient-bar{width:80px;height:8px;border-radius:4px;background:linear-gradient(90deg,#64B5F6,#42A5F5,#2979FF,#1565C0,#0D47A1)}
+.daily-list{display:flex;flex-direction:column;gap:4px;margin-bottom:12px}
+.daily-row{display:flex;align-items:center;gap:8px;background:#fff;border-radius:8px;padding:9px 12px;cursor:pointer;transition:.15s;box-shadow:0 2px 14px rgba(0,0,0,0.07)}
+.daily-row:hover{box-shadow:0 4px 20px rgba(0,0,0,0.10)}
+.daily-row .dd{width:38px;font-size:11px;color:#9aa0b0;flex-shrink:0}
+.daily-row .dt{font-size:14px;font-weight:600;width:65px;flex-shrink:0;color:#FF6B6B}
+.daily-row .dc{flex:1;font-size:11px;color:#5a6a7a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.daily-row .dcats{display:flex;gap:3px;flex-wrap:wrap;flex-shrink:0}
+.cat-dot{width:9px;height:9px;border-radius:50%;display:inline-block;border:1px solid rgba(255,255,255,0.3);flex-shrink:0}
+.daily-row .dtag{font-size:9px;padding:2px 7px;border-radius:4px;flex-shrink:0;white-space:nowrap}
+.daily-row .dtag.exam{background:#e8eaf6;color:#5C6BC0}
+.daily-row .dtag.travel{background:#fbe9e7;color:#FF6B6B}
+.daily-row .dtag.other{background:#e8ecf1;color:#9aa0b0}
+.daily-row.highlight-kw{background:#e8f0fe;transition:background .3s}
+.sub-items{display:none;background:#f4f6f9;border-radius:8px;padding:8px 12px;margin-top:-2px;margin-bottom:2px}
+.sub-items.open{display:block}
+.sub-item{display:flex;justify-content:space-between;padding:4px 0;font-size:11px;color:#5a6a7a;border-bottom:1px solid #e8ecf1}
+.sub-item:last-child{border-bottom:none}
+.sub-item .si-name{flex:1}
+.sub-item .si-amount{font-weight:600;color:#1a1a2e;width:50px;text-align:right}
+.sub-item .si-cat{font-size:9px;color:#9aa0b0;width:36px;text-align:center;display:flex;align-items:center;gap:3px}
+.month-summary{background:#fff;border-radius:8px;padding:10px 14px;margin:4px 0;border-left:3px solid #0D47A1;box-shadow:0 2px 14px rgba(0,0,0,0.07)}
+.month-summary .ms-title{font-size:12px;color:#1a1a2e;font-weight:600}
+.month-summary .ms-line{font-size:10px;color:#5a6a7a;margin-top:3px}
+.travel-fold{background:#fff;border-radius:10px;padding:12px 16px;border:1px solid rgba(255,107,107,0.2);margin:4px 0;cursor:pointer;box-shadow:0 2px 14px rgba(0,0,0,0.07)}
+.travel-fold .tf-top{display:flex;align-items:center;justify-content:space-between}
+.travel-fold .tf-left{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.travel-fold .tf-label{font-size:13px;color:#1a1a2e}
+.travel-fold .tf-cost{font-size:15px;font-weight:600;color:#FF6B6B}
+.travel-fold .tf-sub{font-size:10px;color:#9aa0b0}
+.travel-fold .tf-arrow{color:#2979FF;font-size:10px;transition:transform .2s}
+.travel-fold .tf-arrow.open{transform:rotate(180deg)}
+.tf-detail{display:none;margin-top:8px}
+.tf-detail.open{display:block}
+.tf-row{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid #e8ecf1;font-size:11px}
+.tf-row:last-child{border-bottom:none}
+.tf-row .tfd{color:#9aa0b0;width:32px}
+.tf-row .tfc{color:#FF6B6B;width:55px;font-weight:600}
+.tf-row .tfi{color:#5a6a7a;flex:1}
+.heatmap-wrap{background:#fff;border-radius:10px;padding:14px;box-shadow:0 2px 14px rgba(0,0,0,0.07);margin-bottom:12px;overflow-x:auto}
+.heatmap-wrap h3{font-size:12px;color:#5a6a7a;margin-bottom:10px;font-weight:400}
+.hm-month{font-size:10px;color:#5a6a7a;padding:2px 0 4px 0}
+.hm-row{display:flex;align-items:center;gap:3px}
+.hm-label{width:20px;text-align:right;color:#9aa0b0;flex-shrink:0;font-size:9px}
+.hm-cells{display:flex;gap:3px}
+.hm-cell{width:20px;height:20px;border-radius:3px;background:#e4e7eb;display:flex;align-items:center;justify-content:center;font-size:7px;color:#888;position:relative;cursor:default}
+.hm-cell.has-data{cursor:pointer}
+.hm-cell .hm-tip{display:none;position:absolute;bottom:calc(100%+4px);left:50%;transform:translateX(-50%);background:#1a1a2e;color:#fff;font-size:9px;padding:3px 7px;border-radius:4px;white-space:nowrap;z-index:10;pointer-events:none}
+.hm-cell:hover .hm-tip{display:block}
+.hm-cell.highlight{box-shadow:0 0 0 1.5px #0D47A1 inset}
+.report-grid{display:flex;flex-direction:column;gap:12px}
+.report-card{background:#fff;border-radius:12px;padding:16px;box-shadow:0 2px 14px rgba(0,0,0,0.07)}
+.rc-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:6px}
+.rc-title{font-size:14px;color:#1a1a2e;font-weight:600}
+.rc-badge{font-size:9px;padding:2px 8px;border-radius:4px;background:#e8ecf1;color:#5a6a7a}
+.rc-stats{display:flex;gap:16px;margin-bottom:6px;flex-wrap:wrap}
+.rc-stat{font-size:12px;color:#5a6a7a}
+.rc-stat strong{color:#FF6B6B}
+.rc-summary{font-size:12px;color:#5a6a7a;line-height:1.6;margin-bottom:8px}
+.rc-keywords{display:flex;gap:5px;flex-wrap:wrap}
+.kw{font-size:10px;padding:2px 8px;border-radius:4px;background:#e8ecf1;color:#5a6a7a}
+.rc-top3{font-size:11px;color:#5a6a7a;margin-bottom:6px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.copy-btn{padding:4px 12px;border-radius:6px;border:1px solid #e8ecf1;background:transparent;color:#5a6a7a;font-size:10px;cursor:pointer}
+.copy-btn:hover{background:#e8f0fe;border-color:#2979FF;color:#2979FF}
+.hidden{display:none!important}
+.empty-state{padding:30px;text-align:center;color:#9aa0b0;font-size:13px}
+</style>
+</head>
+<body>
+<div class="container">
+<div class="header">
+  <h1><span id="pageTitleIcon"></span> <span id="pageTitleText">甜鱼 · 数据总看板</span> <small id="dateRangeLabel"></small></h1>
+  <div class="header-right">
+    <span class="exam-countdown" id="countdown"></span>
+    <button class="back-btn hidden" id="backBtn" onclick="goHome()">&larr; 返回总览</button>
+  </div>
+</div>
+
+<div id="page-dashboard" class="page active">
+  <div class="dash-grid" id="dashGrid"></div>
+  <div class="nav-grid">
+    <div class="nav-btn" onclick="goPage('study')"><div class="ico">&#x1F4D6;</div><div class="title">学习统计</div><div class="desc" id="navStudyDesc"></div></div>
+    <div class="nav-btn" onclick="goPage('expense')"><div class="ico">&#x1F4B8;</div><div class="title">消费统计</div><div class="desc" id="navExpenseDesc"></div></div>
+    <div class="nav-btn" onclick="goPage('reports')"><div class="ico">&#x1F4CB;</div><div class="title">周报/月报</div><div class="desc" id="navReportsDesc"></div></div>
+  </div>
+  <div class="quick-links"><div class="ql-label">快捷入口</div><div class="ql-btns" id="qlBtns"></div></div>
+  <div class="section-title">&#x1F4CA; 常做的事</div>
+  <div class="freq-grid" id="freqGrid"></div>
+</div>
+
+<div id="page-study" class="page">
+  <div class="study-header"><span class="label">学习项目：</span><div id="projectBtns"></div></div>
+  <div class="study-header"><span class="label">时段：</span><div id="studyPeriodBar"></div></div>
+  <div class="summary-row" id="studySummary"></div>
+  <div class="chart-grid">
+    <div class="chart-box full"><h3>每日总词量</h3><canvas id="studyTotalChart"></canvas><div class="chart-note" id="noteTotal"></div></div>
+  </div>
+  <div class="chart-grid">
+    <div class="chart-box"><h3>各APP占比（累计）</h3><canvas id="studyPieChart"></canvas><div class="chart-note" id="notePie"></div></div>
+    <div class="chart-box"><h3>复习 vs 新学</h3><canvas id="studyReviewChart"></canvas><div class="chart-note" id="noteReview"></div></div>
+  </div>
+  <div class="chart-grid">
+    <div class="chart-box full"><h3>每日各线词量</h3><canvas id="studyStackedChart"></canvas><div class="chart-note" id="noteStacked"></div></div>
+  </div>
+</div>
+
+<div id="page-expense" class="page">
+  <div class="period-bar" id="expensePeriodBar"></div>
+  <div class="expense-stats" id="expenseStats"></div>
+  <div class="chart-row2">
+    <div class="chart-full"><h3>消费分类</h3><canvas id="expCatChart"></canvas></div>
+    <div class="chart-full"><h3>每日消费</h3><canvas id="expDailyChart"></canvas></div>
+  </div>
+  <div class="heatmap-wrap"><h3>日历热力图</h3><div id="heatmapContainer"></div></div>
+  <div class="section-title">逐日明细</div>
+  <div class="daily-list" id="dailyList"></div>
+</div>
+
+<div id="page-reports" class="page">
+  <div class="section-title">周报</div><div class="report-grid" id="weeklyGrid"></div>
+  <div class="section-title" style="margin-top:16px">月报</div><div class="report-grid" id="monthlyGrid"></div>
+</div>
+
+</div>
+
+<script>
+// ============ HELPERS ============
+function sumItems(items){return items.reduce(function(s,i){return s+parseFloat(i.amount)},0);}
+function sumApps(proj){return proj.dateLabels.map(function(_,i){return Object.values(proj.apps).reduce(function(s,arr){return s+arr[i]},0);});}
+
+function parseMD(s){var p=s.split('/');return[parseInt(p[0]),parseInt(p[1])]}
+function compareDate(a,b){var am=parseMD(a)[0],ad=parseMD(a)[1],bm=parseMD(b)[0],bd=parseMD(b)[1];if(am!==bm)return am<bm?-1:1;if(ad!==bd)return ad<bd?-1:1;return 0}
+function dateInRange(d,s,e){return compareDate(d,s)>=0&&compareDate(d,e)<=0}
+
+// ============ DATA ============
+var DATA = null;
+var CAT_COLORS = {"餐饮":"#e17055","交通":"#0984e3","购物":"#00b894","医疗":"#fd79a8","娱乐":"#fdcb6e","住宿":"#6c5ce7","其他":"#636e72"};
+var BAR_NORMAL = '#cfd8e6';
+var HIGHLIGHT_KW = null;
+var HIGHLIGHT_TIMER = null;
+var PIE_CAT_COLORS = {"餐饮":"#FF8A65","交通":"#42A5F5","购物":"#AB47BC","医疗":"#EF5350","娱乐":"#FFD54F","住宿":"#5C6BC0","其他":"#90A4AE"};
+var HEATMAP_COLORS = ['#FFF9C4','#FFE082','#FFB74D','#FF8A65','#E53935'];
+
+Chart.defaults.color = '#5a6a7a';
+Chart.defaults.borderColor = '#e8ecf1';
+
+var CHART_READY = true;
+function init(){
+  if(typeof Chart === 'undefined'){
+    CHART_READY = false;
+    var banner = document.createElement('div');
+    banner.className = 'offline-banner show';
+    banner.style.background = '#E53935';
+    banner.textContent = '\u26A0\uFE0F \u56FE\u8868\u5E93\u52A0\u8F7D\u5931\u8D25\uFF0C\u8BF7\u68C0\u67E5\u7F51\u7EDC\u8FDE\u63A5';
+    document.querySelector('.container').prepend(banner);
+  }
+  if(!window.DATA_RAW){
+    document.getElementById('dateRangeLabel').textContent = '-';
+    document.getElementById('countdown').textContent = '';
+    return;
+  }
+  DATA = JSON.parse(JSON.stringify(window.DATA_RAW));
+
+  // Auto-calculate dateRange from expenses
+  if(DATA.expenses && DATA.expenses.length){
+    var dates = DATA.expenses.map(function(d){return d.date;}).sort(compareDate);
+    document.getElementById('dateRangeLabel').textContent = dates[0] + ' - ' + dates[dates.length-1];
+  } else {
+    document.getElementById('dateRangeLabel').textContent = '-';
+  }
+
+  if(DATA.meta.categoryColors) for(var k in DATA.meta.categoryColors) CAT_COLORS[k]=DATA.meta.categoryColors[k];
+  renderDashboard();
+  var h=location.hash.replace('#','');
+  if(h&&['study','expense','reports'].indexOf(h)>=0)goPage(h,true);
+  window.addEventListener('hashchange',function(){
+    var h2=location.hash.replace('#','');
+    if(h2&&['study','expense','reports'].indexOf(h2)>=0)goPage(h2,true);
+    else goHome(true);
+  });
+}
+init();
+
+function goPage(name,fromHash){
+  document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active')});
+  document.getElementById('page-'+name).classList.add('active');
+  document.getElementById('backBtn').classList.remove('hidden');
+  document.getElementById('pageTitleIcon').innerHTML={'study':'&#x1F4D6;','expense':'&#x1F4B8;','reports':'&#x1F4CB;'}[name]||'';
+  document.getElementById('pageTitleText').textContent='日报 · '+{'study':'学习统计','expense':'消费统计','reports':'周报/月报'}[name];
+  if(!fromHash)location.hash=name;
+  if(!CHART_READY)return;
+  if(name==='study')renderStudy();
+  if(name==='expense'){renderExpense();if(HIGHLIGHT_KW)setTimeout(function(){applyHighlight()},200);}
+  if(name==='reports')renderReports();
+}
+function goHome(fromHash){
+  document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active')});
+  document.getElementById('page-dashboard').classList.add('active');
+  document.getElementById('backBtn').classList.add('hidden');
+  document.getElementById('pageTitleIcon').innerHTML='&#x1F41F;';
+  document.getElementById('pageTitleText').textContent='日报数据看板';
+  if(!fromHash)location.hash='';
+}
+
+// ============ DASHBOARD ============
+function renderDashboard(){
+  var exps=DATA.expenses;
+  var tc=exps.reduce(function(s,d){return s+sumItems(d.items)},0);
+  var sd=0, tw=0;
+  DATA.studyProjects.forEach(function(p){sd=Math.max(sd,p.dateLabels.length);var t=sumApps(p);tw+=t.reduce(function(a,b){return a+b},0);});
+  var td=exps.length;
+
+  document.getElementById('dashGrid').innerHTML=
+    '<div class="dash-card"><div class="num" style="color:#2979FF">'+tw.toLocaleString()+'</div><div class="lbl">累计总词量</div><div class="sub">'+sd+'天学习</div></div>'+
+    '<div class="dash-card"><div class="num" style="color:#FF6B6B">\u00a5'+tc.toFixed(0)+'</div><div class="lbl">累计总消费</div><div class="sub">'+td+'天记录</div></div>'+
+    '<div class="dash-card"><div class="num">'+sd+'</div><div class="lbl">累计学习天数</div><div class="sub">'+DATA.studyProjects.length+'个项目</div></div>'+
+    '<div class="dash-card"><div class="num">'+td+'</div><div class="lbl">累计记录天数</div><div class="sub">'+document.getElementById('dateRangeLabel').textContent+'</div></div>';
+
+  document.getElementById('navStudyDesc').textContent=DATA.studyProjects.map(function(p){var t=sumApps(p).reduce(function(a,b){return a+b},0);return p.label+' \u00b7 '+t+'词';}).join(' | ');
+  document.getElementById('navExpenseDesc').textContent=td+'天 \u00b7 \u00a5'+tc.toFixed(0);
+  document.getElementById('navReportsDesc').textContent=(DATA.weeklyReports||[]).length+'份周报 \u00b7 '+(DATA.monthlyReports||[]).length+'份月报';
+
+  var ql=document.getElementById('qlBtns');ql.innerHTML='';
+  (DATA.meta.specialPeriods||[]).forEach(function(sp){
+    var btn=document.createElement('button');btn.className='ql-btn';btn.style.background=sp.color;
+    btn.textContent=sp.label+' \u2192';
+    btn.onclick=function(){
+      if(sp.type==='study'){goPage('study');setTimeout(function(){selectProject(sp.id)},100);}
+      else if(sp.type==='expense'){goPage('expense');setTimeout(function(){selectPeriod(sp.id)},100);}
+    };
+    ql.appendChild(btn);
+  });
+  if(!(DATA.meta.specialPeriods||[]).length)ql.innerHTML='<span style="font-size:11px;color:#9aa0b0">暂无特殊时段</span>';
+  updateCountdown();
+  renderFrequentStats();
+}
+
+function renderFrequentStats(){
+  var grid=document.getElementById('freqGrid');grid.innerHTML='';
+  var exps=DATA.expenses;
+  if(!exps.length){grid.innerHTML='<div style="grid-column:1/-1;text-align:center;color:#9aa0b0;font-size:12px;padding:20px">暂无数据</div>';return;}
+  var drinkKw=['奶茶','咖啡','可乐','酸奶','柠檬水','绿豆冰沙'];
+  var drinkCount=0,wontonCount=0,taxiCount=0,entertainCount=0,entertainTotal=0,hotelCount=0,hotelTotal=0,foodCounts={};
+  exps.forEach(function(d){d.items.forEach(function(it){
+    var n=it.name;
+    if(it.cat==='餐饮'){
+      if(drinkKw.some(function(kw){return n.indexOf(kw)>=0}))drinkCount++;
+      if(n.indexOf('馄饨')>=0)wontonCount++;
+      ['馄饨','炸酱面','麻辣烫','盖浇饭','蛋炒饭','酸辣粉','砂锅米线','烤冷面','鸡排饭','水饺','兰州拉面','黄焖鸡','刀削面'].forEach(function(fw){if(n.indexOf(fw)>=0)foodCounts[fw]=(foodCounts[fw]||0)+1;});
+    }
+    if(n.indexOf('打车')>=0){var m=n.match(/\u00d7(\d+)/);taxiCount+=m?parseInt(m[1]):1;}
+    if(it.cat==='娱乐'){entertainCount++;entertainTotal+=it.amount;}
+    if(n.indexOf('酒店')>=0){hotelCount++;hotelTotal+=it.amount;}
+  });});
+  var topFood=Object.keys(foodCounts).sort(function(a,b){return foodCounts[b]-foodCounts[a]}).slice(0,3);
+  var cards=[{h:'<div class="fc-num">'+drinkCount+'</div><div class="fc-label">喝了 '+drinkCount+' 次饮品</div><div class="fc-sub">奶茶、咖啡、可乐、酸奶</div>',kw:drinkKw},{h:'<div class="fc-num">'+wontonCount+'</div><div class="fc-label">吃了 '+wontonCount+' 次馄饨</div><div class="fc-sub">最爱的食堂单品</div>',kw:['馄饨']},{h:'<div class="fc-num">'+taxiCount+'</div><div class="fc-label">打车 '+taxiCount+' 次</div><div class="fc-sub">含旅行期间出行</div>',kw:['打车']},{h:'<div class="fc-num">'+entertainCount+'</div><div class="fc-label">娱乐活动 '+entertainCount+' 次</div><div class="fc-sub" style="color:#2979FF">\u00a5'+entertainTotal+'</div>',kw:[]},{h:topFood.length?'<div class="fc-big">'+topFood.join(' / ')+'</div><div class="fc-label">最常吃 Top3</div><div class="fc-tags">'+topFood.map(function(f){return'<span class="fc-tag">'+foodCounts[f]+'次</span>'}).join('')+'</div>':'<div class="fc-num">0</div><div class="fc-label">暂无餐饮数据</div>',kw:topFood},{h:'<div class="fc-num">'+hotelCount+'</div><div class="fc-label">酒店住宿 '+hotelCount+' 晚</div><div class="fc-sub">旅行期间住宿 \u00a5'+hotelTotal+'</div>',kw:['酒店']}];
+  grid.innerHTML=cards.map(function(c,i){return'<div class="freq-card" onclick="clickFreqCard('+i+')">'+c.h+'</div>';}).join('');
+  window._freqCards=cards;
+}
+function clickFreqCard(idx){var c=window._freqCards;if(!c||!c[idx])return;HIGHLIGHT_KW=c[idx].kw||[];goPage('expense');}
+function applyHighlight(){
+  if(!HIGHLIGHT_KW||!HIGHLIGHT_KW.length)return;
+  if(HIGHLIGHT_TIMER)clearTimeout(HIGHLIGHT_TIMER);
+  var rows=document.querySelectorAll('.daily-row');
+  rows.forEach(function(r){var t=(r.textContent||'').toLowerCase();if(HIGHLIGHT_KW.some(function(kw){return t.indexOf(kw.toLowerCase())>=0}))r.classList.add('highlight-kw');});
+  HIGHLIGHT_TIMER=setTimeout(function(){rows.forEach(function(r){r.classList.remove('highlight-kw')});HIGHLIGHT_KW=null;HIGHLIGHT_TIMER=null;},3000);
+}
+
+function updateCountdown(){
+  var el=document.getElementById('countdown');
+  if(!DATA.meta.examDate){el.textContent='';return;}
+  var diff=Math.ceil((new Date(DATA.meta.examDate)-Date.now())/(864e5));
+  el.textContent=diff>0?'\uD83D\uDCCC 考试倒计时 '+diff+'天':(diff===0?'\uD83D\uDCCC 考试今天\uFF01':'\uD83D\uDCCC 考试已结束');
+}
+
+// ============ STUDY ============
+var activeProjectId=null,activeStudyPeriod='all';
+function renderStudy(){
+  var projects=DATA.studyProjects;
+  if(!projects.length)return;
+  var btns=document.getElementById('projectBtns');btns.innerHTML='';
+  projects.forEach(function(p){
+    var b=document.createElement('button');b.className='project-btn'+(activeProjectId===p.id||(!activeProjectId&&projects[0].id===p.id)?' active':'');b.textContent=p.label;b.onclick=function(){selectProject(p.id)};btns.appendChild(b);
+  });
+  var bar=document.getElementById('studyPeriodBar');bar.innerHTML='<button class="period-btn active" onclick="selectStudyPeriod(\'all\')">全部</button>';
+  (DATA.meta.specialPeriods||[]).filter(function(s){return s.type==='study'}).forEach(function(sp){bar.innerHTML+='<button class="period-btn" onclick="selectStudyPeriod(\''+sp.id+'\')">'+sp.label+' '+sp.start+'-'+sp.end+'</button>';});
+  selectProject(activeProjectId||projects[0].id);
+}
+function selectProject(id){activeProjectId=id;document.querySelectorAll('.project-btn').forEach(function(b){b.classList.toggle('active',b.textContent===DATA.studyProjects.find(function(p){return p.id===id})?.label)});applyStudyFilter();}
+function selectStudyPeriod(pid){activeStudyPeriod=pid;document.querySelectorAll('#studyPeriodBar .period-btn').forEach(function(b){b.classList.toggle('active',b.textContent.indexOf(pid==='all'?'全部':(DATA.meta.specialPeriods.find(function(s){return s.id===pid})||{}).label||'')>=0)});applyStudyFilter();}
+function applyStudyFilter(){
+  var proj=DATA.studyProjects.find(function(p){return p.id===activeProjectId});if(!proj)return;
+  var labels=proj.dateLabels,apps={},review=proj.review,newWords=proj.newWords;
+  for(var k in proj.apps)apps[k]=proj.apps[k];
+  // Compute totals from apps dynamically
+  var totals=labels.map(function(_,i){return Object.values(apps).reduce(function(s,arr){return s+arr[i]},0);});
+  if(activeStudyPeriod!=='all'){
+    var sp=DATA.meta.specialPeriods.find(function(s){return s.id===activeStudyPeriod});
+    if(sp){var si=labels.indexOf(sp.start),ei=labels.indexOf(sp.end);if(si>=0&&ei>=0){labels=labels.slice(si,ei+1);totals=totals.slice(si,ei+1);for(var k2 in apps)apps[k2]=apps[k2].slice(si,ei+1);review=review.slice(si,ei+1);newWords=newWords.slice(si,ei+1);}}
+  }
+  renderStudyCharts(labels,totals,apps,review,newWords);
+}
+function renderStudyCharts(labels,totals,apps,review,newWords){
+  ['studyTotalChart','studyPieChart','studyReviewChart','studyStackedChart'].forEach(function(id){var c=Chart.getChart(id);if(c)c.destroy()});
+  var total=totals.reduce(function(a,b){return a+b},0),avg=Math.round(total/totals.length),max=Math.max.apply(null,totals),min=Math.min.apply(null,totals);
+  var appNames=Object.keys(apps);
+  document.getElementById('studySummary').innerHTML='<div class="summary-card"><div class="num">'+total+'</div><div class="lbl">总词量</div></div><div class="summary-card"><div class="num">'+avg+'</div><div class="lbl">日均词量</div></div><div class="summary-card"><div class="num" style="color:#0D47A1">'+max+'</div><div class="lbl">单日最高</div></div><div class="summary-card"><div class="num" style="color:#64B5F6">'+min+'</div><div class="lbl">单日最低</div></div>';
+  new Chart(document.getElementById('studyTotalChart'),{type:'line',data:{labels:labels,datasets:[{label:'总词量',data:totals,borderColor:'#5C6BC0',backgroundColor:'rgba(92,107,192,0.08)',fill:true,tension:.25,pointBackgroundColor:'#5C6BC0',pointRadius:4}]},options:{responsive:true,plugins:{legend:{display:false},tooltip:{callbacks:{label:function(ctx){return ctx.parsed.y+' 词'}}}},scales:{y:{beginAtZero:true,grid:{color:'#e8ecf1'},max:Math.max.apply(null,totals)*1.15},x:{grid:{display:false}}}}});
+  document.getElementById('noteTotal').textContent=labels[totals.indexOf(Math.max.apply(null,totals))]+' \u8FBE\u5230\u5CF0\u503C '+Math.max.apply(null,totals)+' \u8BCD\u3002';
+  var appTotals=appNames.map(function(n){return apps[n].reduce(function(a,b){return a+b},0)});
+  var studyPieColors={'\u4E07\u8BCD\u738B':'#5C6BC0','\u7591\u72C2\u80CC\u5355\u8BCD':'#FDD835','\u4E0D\u80CC\u5355\u8BCD':'#FF9800'};
+  var pieColors=appNames.map(function(n){return studyPieColors[n]||'#90A4AE'});
+  new Chart(document.getElementById('studyPieChart'),{type:'doughnut',data:{labels:appNames,datasets:[{data:appTotals,backgroundColor:pieColors,borderWidth:0}]},options:{responsive:true,plugins:{legend:{position:'bottom',labels:{padding:8,boxWidth:10,font:{size:11}}}}}});
+  document.getElementById('notePie').textContent=appNames[appTotals.indexOf(Math.max.apply(null,appTotals))]+' \u5360\u6BD4\u6700\u9AD8\u3002';
+  new Chart(document.getElementById('studyReviewChart'),{type:'bar',data:{labels:labels,datasets:[{label:'复习',data:review,backgroundColor:'#1565C0',borderRadius:3},{label:'新学',data:newWords,backgroundColor:'#90CAF9',borderRadius:3}]},options:{responsive:true,plugins:{legend:{labels:{boxWidth:10,padding:8,font:{size:11}}}},scales:{x:{stacked:true,grid:{display:false}},y:{stacked:true,beginAtZero:true,grid:{color:'#e8ecf1'}}}}});
+  var rv=review.reduce(function(a,b){return a+b},0),nw=newWords.reduce(function(a,b){return a+b},0);
+  document.getElementById('noteReview').textContent='\u590D\u4E60 '+rv+' \u8BCD\uFF08'+(rv/(rv+nw)*100).toFixed(0)+'%\uFF09vs \u65B0\u5B66 '+nw+' \u8BCD\u3002';
+  new Chart(document.getElementById('studyStackedChart'),{type:'bar',data:{labels:labels,datasets:appNames.map(function(n,i){return{label:n,data:apps[n],backgroundColor:pieColors[i],borderRadius:3}})},options:{responsive:true,plugins:{legend:{labels:{boxWidth:10,padding:8,font:{size:11}}}},scales:{x:{stacked:true,grid:{display:false}},y:{stacked:true,beginAtZero:true,grid:{color:'#e8ecf1'}}}}});
+  document.getElementById('noteStacked').textContent=appNames.map(function(n,i){return n+' '+apps[n].reduce(function(a,b){return a+b},0)+' \u8BCD'}).join(' \u00B7 ');
+}
+
+// ============ EXPENSE ============
+var activePeriod='all';
+function renderExpense(){
+  var bar=document.getElementById('expensePeriodBar');bar.innerHTML='<button class="period-btn active" onclick="selectPeriod(\'all\')">全部</button>';
+  (DATA.meta.specialPeriods||[]).filter(function(s){return s.type==='expense'}).forEach(function(sp){bar.innerHTML+='<button class="period-btn" onclick="selectPeriod(\''+sp.id+'\')">'+sp.label+' '+sp.start+'-'+sp.end+'</button>';});
+  selectPeriod('all');
+}
+function selectPeriod(pid){
+  activePeriod=pid;
+  document.querySelectorAll('#expensePeriodBar .period-btn').forEach(function(b){b.classList.toggle('active',b.textContent.indexOf(pid==='all'?'全部':(DATA.meta.specialPeriods.find(function(s){return s.id===pid})||{}).label||'')>=0)});
+  var exps=DATA.expenses,spObj=null;
+  if(pid!=='all'){spObj=DATA.meta.specialPeriods.find(function(s){return s.id===pid});if(spObj)exps=exps.filter(function(d){return dateInRange(d.date,spObj.start,spObj.end)});}
+  renderExpenseCharts(exps,pid,spObj);
+  renderDailyList(exps,pid,spObj);
+}
+function renderExpenseCharts(exps,pid,spObj){
+  if(!exps.length)return;
+  var vals=exps.map(function(d){return sumItems(d.items);});
+  var total=vals.reduce(function(s,v){return s+v},0),avg=total/vals.length;
+  var max=Math.max.apply(null,vals),min=Math.min.apply(null,vals);
+  var incomeTotal=0;(DATA.incomeNotes||[]).forEach(function(inc){if(pid==='all'||(spObj&&dateInRange(inc.date,spObj.start,spObj.end)))incomeTotal+=inc.amount;});
+  document.getElementById('expenseStats').innerHTML=
+    '<div class="expense-stat"><div class="num" style="color:#FF6B6B">\u00a5'+total.toFixed(0)+'</div><div class="lbl">总消费</div></div>'+
+    '<div class="expense-stat"><div class="num">\u00a5'+avg.toFixed(1)+'</div><div class="lbl">日均</div></div>'+
+    '<div class="expense-stat"><div class="num" style="color:#0D47A1">\u00a5'+max.toFixed(0)+'</div><div class="lbl">单日最高</div></div>'+
+    '<div class="expense-stat"><div class="num" style="color:#64B5F6">\u00a5'+min.toFixed(0)+'</div><div class="lbl">单日最低</div></div>'+
+    '<div class="expense-stat"><div class="num" style="color:#4CAF50">\u00a5'+incomeTotal.toFixed(0)+'</div><div class="lbl">期间收入</div></div>';
+
+  ['expCatChart','expDailyChart'].forEach(function(id){var c=Chart.getChart(id);if(c)c.destroy();});
+  var catTotals={};exps.forEach(function(d){d.items.forEach(function(it){catTotals[it.cat]=(catTotals[it.cat]||0)+it.amount;});});
+  var catLabels=Object.keys(catTotals).sort(function(a,b){return catTotals[b]-catTotals[a]});
+  new Chart(document.getElementById('expCatChart'),{type:'doughnut',data:{labels:catLabels,datasets:[{data:catLabels.map(function(k){return catTotals[k]}),backgroundColor:catLabels.map(function(c){return PIE_CAT_COLORS[c]||'#90A4AE'}),borderWidth:0}]},options:{responsive:true,plugins:{legend:{position:'bottom',labels:{padding:8,boxWidth:10,font:{size:10}}}}}});
+
+  var labels=exps.map(function(d){return d.date}),values=vals;
+  var allVals=DATA.expenses.map(function(d){return sumItems(d.items);});
+  var avg30=allVals.length>5?allVals.reduce(function(s,v){return s+v},0)/allVals.length:0;
+  var outliers=values.map(function(v){return v>avg30*1.5});
+  var top5Colors=['#0D47A1','#1565C0','#2979FF','#42A5F5','#64B5F6'];
+  var barColors;
+  if(pid==='all'){
+    var sorted=values.slice().sort(function(a,b){return b-a});
+    barColors=values.map(function(v){
+      if(v<=0)return BAR_NORMAL;
+      var rank=0;for(var i=0;i<values.length;i++){if(values[i]>v)rank++;}
+      return rank<5?top5Colors[rank]:BAR_NORMAL;
+    });
+  } else {
+    barColors=labels.map(function(d){var m=DATA.meta.specialPeriods.find(function(s){return s.type==='expense'&&dateInRange(d,s.start,s.end)});return m?m.color:BAR_NORMAL;});
+  }
+  new Chart(document.getElementById('expDailyChart'),{type:'bar',data:{labels:labels,datasets:[{label:'消费',data:values,backgroundColor:barColors,borderRadius:3,pointStyle:outliers.map(function(o){return o?'circle':false}),pointRadius:outliers.map(function(o){return o?5:0}),pointBackgroundColor:outliers.map(function(o){return o?'#FFA726':'transparent'}),pointBorderColor:outliers.map(function(o){return o?'#FFA726':'transparent'})}]},options:{responsive:true,plugins:{legend:{display:false},tooltip:{callbacks:{afterLabel:function(ctx){if(outliers[ctx.dataIndex])return'\u26A0\uFE0F \u00a5'+values[ctx.dataIndex]+'\uFF0C\u8FD130\u65E5\u5747\u503C\u00a5'+avg30.toFixed(1);return''}}}},scales:{y:{beginAtZero:true,grid:{color:'#e8ecf1'}},x:{grid:{display:false}}}}});
+  var cw=document.getElementById('expDailyChart').closest('.chart-full'),old=cw.querySelector('.bar-legend');if(old)old.remove();
+  cw.insertAdjacentHTML('beforeend',pid==='all'?'<div class="bar-legend"><span>\u6D88\u8D39 Top5</span><span class="gradient-bar"></span><span><span class="dot" style="background:'+BAR_NORMAL+'"></span>\u5176\u4ED6</span></div>':'<div class="bar-legend"><span><span class="dot" style="background:'+(spObj?spObj.color:'#2979FF')+'"></span>'+spObj.label+'</span><span><span class="dot" style="background:'+BAR_NORMAL+'"></span>\u5176\u4ED6\u65E5\u671F</span></div>');
+  renderHeatmap(exps,pid,spObj);
+}
+
+function renderHeatmap(exps,pid,spObj){
+  var container=document.getElementById('heatmapContainer');container.innerHTML='';
+  var months={},allCostMap={};
+  DATA.expenses.forEach(function(d){allCostMap[d.date]=sumItems(d.items);var m=d.date.split('/')[0];months[m]=true;});
+  var maxCost=Math.max.apply(null,Object.values(allCostMap).concat([1]));
+  for(var mStr in months){
+    var m=parseInt(mStr);
+    // Dynamic year detection based on earliest expense month
+    var nowY=new Date().getFullYear();
+    var allMonths=Object.keys(months).map(Number);
+    var earliestM=Math.min.apply(null,allMonths);
+    var year=earliestM>new Date().getMonth()+1?nowY-1:nowY;
+    var dim=new Date(year,m,0).getDate(),fd=new Date(year,m-1,1).getDay();
+    container.innerHTML+='<div class="hm-month">'+m+'\u6708</div>';
+    container.innerHTML+='<div class="hm-row"><div class="hm-label"></div><div class="hm-cells">'+'\u65E5\u4E00\u4E8C\u4E09\u56DB\u4E94\u516D'.split('').map(function(d){return'<div style="width:20px;text-align:center;color:#9aa0b0;font-size:7px">'+d+'</div>'}).join('')+'</div></div>';
+    var cells=[];for(var i=0;i<fd;i++)cells.push(null);
+    for(var d=1;d<=dim;d++){
+      var ds=m+'/'+d,cost=allCostMap[ds],isInPeriod=pid==='all'||(spObj&&dateInRange(ds,spObj.start,spObj.end));
+      var bg='#e4e7eb';
+      if(cost!==undefined){
+        var ratio=cost/maxCost,idx=ratio>=0.8?4:Math.floor(ratio*5);
+        bg=HEATMAP_COLORS[Math.min(idx,4)];
+      }
+      var tip=cost!==undefined?ds+' \u00a5'+cost.toFixed(2):ds;
+      cells.push('<div class="hm-cell'+(isInPeriod&&cost!==undefined?' highlight':'')+(cost!==undefined?' has-data':'')+'" style="background:'+bg+'">'+(cost!==undefined?'\u00B7':'')+'<div class="hm-tip">'+tip+'</div></div>');
+    }
+    var wd=['\u65E5','\u4E00','\u4E8C','\u4E09','\u56DB','\u4E94','\u516D'];
+    for(var i2=0;i2<cells.length;i2+=7)container.innerHTML+='<div class="hm-row"><div class="hm-label">'+wd[Math.floor(i2/7)%7]+'</div><div class="hm-cells">'+cells.slice(i2,i2+7).map(function(c){return c||'<div class="hm-cell"></div>'}).join('')+'</div></div>';
+  }
+}
+
+function renderDailyList(exps,pid,spObj){
+  var list=document.getElementById('dailyList');list.innerHTML='';
+  var isAll=pid==='all',monthGroups={};
+  exps.forEach(function(d){var m=d.date.split('/')[0];if(!monthGroups[m])monthGroups[m]=[];monthGroups[m].push(d);});
+  var travelSP=(DATA.meta.specialPeriods||[]).find(function(s){return s.type==='expense'});
+  var travelIncome=0;(DATA.incomeNotes||[]).forEach(function(inc){if(travelSP&&dateInRange(inc.date,travelSP.start,travelSP.end))travelIncome+=inc.amount;});
+  var lastMonth='',travelRendered=false;
+  var studyPeriods=(DATA.meta.specialPeriods||[]).filter(function(s){return s.type==='study';});
+  exps.forEach(function(d,idx){
+    var m=d.date.split('/')[0];
+    if(m!==lastMonth&&isAll){
+      lastMonth=m;var md=monthGroups[m],mt=md.reduce(function(s,x){return s+sumItems(x.items)},0),ma=mt/md.length,cats={};
+      md.forEach(function(x){x.items.forEach(function(it){cats[it.cat]=(cats[it.cat]||0)+it.amount});});
+      var top3=Object.keys(cats).sort(function(a,b){return cats[b]-cats[a]}).slice(0,3);
+      list.innerHTML+='<div class="month-summary"><div class="ms-title">\uD83D\uDCC6 '+m+'\u6708\u6C47\u603B</div><div class="ms-line">\u603B\u6D88\u8D39 \u00a5'+mt.toFixed(0)+' \u00B7 \u65E5\u5747 \u00a5'+ma.toFixed(1)+' \u00B7 \u4E3B\u8981\u7C7B\u522B\uFF1A'+top3.join('\u3001')+'</div></div>';
+    }
+    var inTravelFlg=travelSP&&dateInRange(d.date,travelSP.start,travelSP.end);
+    if(!isAll&&inTravelFlg&&!travelRendered&&spObj){
+      travelRendered=true;
+      var texps=DATA.expenses.filter(function(x){return dateInRange(x.date,travelSP.start,travelSP.end)});
+      var ttotal=texps.reduce(function(s,x){return s+sumItems(x.items)},0);
+      list.innerHTML+='<div class="travel-fold" onclick="this.querySelector(\'.tf-detail\').classList.toggle(\'open\');this.querySelector(\'.tf-arrow\').classList.toggle(\'open\')"><div class="tf-top"><div class="tf-left"><span class="tf-ico">\uD83C\uDFD6\uFE0F</span><span class="tf-label">'+travelSP.label+' \u00B7 '+travelSP.start+'-'+travelSP.end+'</span><span class="tf-cost">\u00a5'+ttotal.toFixed(0)+'</span><span class="tf-sub">\uFF08\u5171'+texps.length+'\u5929\uFF09</span></div><span class="tf-arrow">\u25BC</span></div><div class="tf-detail">'+texps.map(function(t){return'<div class="tf-row"><span class="tfd">'+t.date+'</span><span class="tfc">\u00a5'+sumItems(t.items).toFixed(0)+'</span><span class="tfi">'+t.items.map(function(i){return i.name}).join('\u00B7')+'</span></div>'}).join('')+'<div class="tf-row" style="border-top:1px solid #e8ecf1;padding-top:6px;margin-top:4px;font-weight:600"><span class="tfd">\u5408\u8BA1</span><span class="tfc" style="color:#FF6B6B">\u00a5'+ttotal.toFixed(0)+'</span><span class="tfi" style="color:#5a6a7a">\u5988\u5988\u8D44\u52A9\u00a5'+travelIncome.toFixed(0)+'\uFF0C\u81EA\u4ED8\u00a5'+Math.max(0,ttotal-travelIncome).toFixed(0)+'</span></div></div></div>';
+      return;
+    }
+    if(!isAll&&inTravelFlg&&travelRendered)return;
+    var dtotal=sumItems(d.items);
+    var tagHtml='',tagClass='other',tagText='\uD83D\uDCCC \u65E5\u5E38';
+    if(studyPeriods.some(function(sp){return dateInRange(d.date,sp.start,sp.end);})){tagClass='exam';tagText='\uD83C\uDFAF \u8003\u8BD5';}
+    else if(travelSP&&dateInRange(d.date,travelSP.start,travelSP.end)){tagClass='travel';tagText='\uD83C\uDFD6\uFE0F \u65C5\u6E38';}
+    var cats=[...new Set(d.items.map(function(i){return i.cat}))];
+    var catDots=cats.map(function(c){return'<span class="cat-dot" style="background:'+(CAT_COLORS[c]||'#636e72')+'" title="'+c+'"></span>'}).join('');
+    list.innerHTML+='<div class="daily-row" onclick="toggleSub(this)"><div class="dd">'+d.date+'</div><div class="dt" style="color:#FF6B6B">\u00a5'+dtotal.toFixed(2)+'</div><div class="dc">'+d.items.map(function(i){return i.name}).join('\u00B7')+'</div><div class="dcats">'+catDots+'</div><span class="dtag '+tagClass+'">'+tagText+'</span></div><div class="sub-items">'+d.items.map(function(i){return'<div class="sub-item"><span class="si-name">'+i.name+'</span><span class="si-cat"><span class="cat-dot" style="background:'+(CAT_COLORS[i.cat]||'#636e72')+'"></span>'+i.cat+'</span><span class="si-amount">\u00a5'+i.amount.toFixed(2)+'</span></div>'}).join('')+(d.note?'<div class="sub-item" style="color:#2979FF;font-size:10px"><span class="si-name">\uD83D\uDCCC '+d.note+'</span></div>':'')+'</div>';
+  });
+  if(HIGHLIGHT_KW&&HIGHLIGHT_KW.length)setTimeout(applyHighlight,100);
+}
+function toggleSub(row){var sub=row.nextElementSibling;if(sub&&sub.classList.contains('sub-items'))sub.classList.toggle('open');}
+
+function renderReports(){
+  var wg=document.getElementById('weeklyGrid');wg.innerHTML='';
+  (DATA.weeklyReports||[]).forEach(function(r){wg.innerHTML+=reportCard(r);});
+  if(!(DATA.weeklyReports||[]).length)wg.innerHTML='<div class="empty-state">\u6682\u65E0\u5468\u62A5</div>';
+  var mg=document.getElementById('monthlyGrid');mg.innerHTML='';
+  var now=new Date();
+  (DATA.monthlyReports||[]).forEach(function(r){
+    var mn=parseInt(r.monthLabel);
+    if(now.getMonth()+1>mn||now.getFullYear()>2026)mg.innerHTML+=reportCard(r);
+    else mg.innerHTML+='<div class="report-card"><div class="rc-header"><span class="rc-title">'+r.monthLabel+' \u00B7 '+r.range+'</span><span class="rc-badge">\u8FDB\u884C\u4E2D</span></div><div class="rc-summary" style="color:#9aa0b0">\u8BE5\u6708\u5C1A\u672A\u7ED3\u675F\uFF0C\u5F85\u5B8C\u6574\u540E\u751F\u6210\u6708\u62A5\u3002</div></div>';
+  });
+  if(!(DATA.monthlyReports||[]).length)mg.innerHTML='<div class="empty-state">\u6682\u65E0\u6708\u62A5</div>';
+}
+function reportCard(r){
+  var isMonthly=!!r.monthLabel,title=isMonthly?r.monthLabel:(r.weekLabel||'\u7B2C'+r.weekIndex+'\u5468');
+  var tag=isMonthly?'':'<span class="rc-badge">'+(r.autoGenerated?'\u81EA\u52A8\u751F\u6210':'\u5DF2\u7F16\u8F91')+'</span>';
+  return '<div class="report-card"><div class="rc-header"><span class="rc-title">'+title+' \u00B7 '+r.range+'</span><div style="display:flex;align-items:center;gap:6px">'+tag+'<button class="copy-btn" onclick="copyReport(\''+r.id+'\', this)">\uD83D\uDCCB \u590D\u5236</button></div></div><div class="rc-stats"><span class="rc-stat">\u603B\u6D88\u8D39 <strong>\u00a5'+r.totalCost.toFixed(0)+'</strong></span><span class="rc-stat">\u65E5\u5747 <strong>\u00a5'+r.avgDailyCost.toFixed(1)+'</strong></span></div><div class="rc-top3">\uD83C\uDFC6 \u6D88\u8D39 Top3\uFF1A'+r.topCategories.map(function(c){return'<span><span class="cat-dot" style="background:'+(CAT_COLORS[c]||'#636e72')+'"></span> '+c+'</span>'}).join(' \u00B7 ')+'</div><div class="rc-summary">'+r.summary+'</div><div class="rc-keywords">'+(r.keywords||[]).map(function(k){return'<span class="kw">#'+k+'</span>'}).join('')+'</div></div>';
+}
+function copyReport(id,btn){
+  var all=[].concat(DATA.weeklyReports||[],DATA.monthlyReports||[]);
+  var r=all.find(function(x){return x.id===id});if(!r)return;
+  var t=r.weekLabel||'\u7B2C'+r.weekIndex+'\u5468'||r.monthLabel;
+  navigator.clipboard.writeText(['\uD83D\uDCCB '+t+' \u00B7 '+r.range,'\u603B\u6D88\u8D39\uFF1A\u00a5'+r.totalCost.toFixed(0)+' | \u65E5\u5747\uFF1A\u00a5'+r.avgDailyCost.toFixed(1),'\u6D88\u8D39 Top3\uFF1A'+r.topCategories.join(' > '),r.summary,(r.keywords||[]).map(function(k){return'#'+k}).join(' ')].join('\n')).then(function(){btn.textContent='\u2705 \u5DF2\u590D\u5236';setTimeout(function(){btn.textContent='\uD83D\uDCCB \u590D\u5236'},1500)}).catch(function(){});
+}
+</script>
+</body>
+</html>
